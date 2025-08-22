@@ -25,6 +25,7 @@ pc = Pinecone(api_key=pinecone_api_key)
 index_name = "finance-policy"
 index = pc.Index(index_name)
 
+# Process PDF files with table extraction. This is done using pdfplumber.
 def process_pdf_with_tables(pdf_path):
     """Extract PDF content with proper table formatting using pdfplumber"""
     try:
@@ -56,7 +57,7 @@ def process_pdf_with_tables(pdf_path):
                         lambda obj: get_bbox_overlap(obj_to_bbox(obj), table.bbox) is None
                     )
                     chars = filtered_page.chars
-
+                    # Create DataFrame from table data.
                     df = pd.DataFrame(table.extract())
                     if df.empty:
                         continue
@@ -98,6 +99,7 @@ def process_pdf_with_tables(pdf_path):
         print(f"Error processing PDF: {str(e)}")
         return []
 
+# In document there can be tables which need to be reformatted because of their structure. So I use LLM to format them as descriptive text.
 def format_with_llm(extracted_text, page_number):
     """Format extracted text using LLM for better structure"""
     try:
@@ -132,6 +134,7 @@ def format_with_llm(extracted_text, page_number):
         print(f"Error formatting with LLM: {str(e)}")
         return extracted_text  
 
+# Batch upsert function: this is used to split the data into smaller batches for efficient upserting.
 def batch_upsert(index, to_upsert, batch_size=100):
     """Splits the data into smaller batches to avoid Pinecone's 4MB limit."""
     for i in range(0, len(to_upsert), batch_size):
@@ -139,6 +142,7 @@ def batch_upsert(index, to_upsert, batch_size=100):
         index.upsert(vectors=batch)
         print(f"Upserted batch {i//batch_size + 1}/{(len(to_upsert) // batch_size) + 1}")
 
+# Ingest file with LLM formatting
 def ingest_file_with_llm_formatting(file_path):
     """Enhanced ingestion with LLM formatting for better content quality"""
     if not file_path.lower().endswith('.pdf'):
@@ -174,7 +178,7 @@ def ingest_file_with_llm_formatting(file_path):
         chunk_overlap=chunk_overlap, 
         separators=["\n\n", "\n", " ", ""]
     )
-
+    # Split formatted pages into chunks
     all_chunks = []
     for page_data in formatted_pages:
         page_number = page_data['page_number']
@@ -213,6 +217,7 @@ def ingest_file_with_llm_formatting(file_path):
     batch_upsert(index, to_upsert, batch_size=50)
     print(f"Successfully ingested {len(all_chunks)} LLM-formatted chunks from {file_path}")
 
+# Query a specific page
 def query_page(book_id, page_number):
     """Query all text chunks from a specific book and page number."""
     dummy_vector = [0.0] * model.get_sentence_embedding_dimension()

@@ -91,7 +91,6 @@ class Retriever:
     def retrieve_context_for_llm(self, query: str, top_k: int = 3) -> str:
         """
         Retrieve relevant documents and format them as context for LLM.
-        
         Args:
             query (str): The query string
             top_k (int): Number of top results to return
@@ -112,7 +111,6 @@ class Retriever:
 
     def retrieve(self, query: str, top_k: int = 5, filter: Dict = None) -> List[Dict]:
         """
-        Legacy retrieve method for backward compatibility.
         Retrieve documents based on query, with optional filtering.
         """
         qvec = self.embed(query)

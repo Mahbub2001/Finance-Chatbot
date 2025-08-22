@@ -1,3 +1,7 @@
+""" 
+This script is for testing best practices in PDF table extraction and formatting.
+"""
+
 import pdfplumber
 import pandas as pd
 from pdfplumber.utils import extract_text, get_bbox_overlap, obj_to_bbox

@@ -91,7 +91,7 @@ def chat(req: ChatRequest):
     ]
 
     return ChatResponse(answer=answer, sources=sources)
-
+# this api is for page-based extraction
 @app.post("/page", response_model=PageResponse)
 def get_page(req: PageRequest):
     """
@@ -111,6 +111,7 @@ def vision(req: VisionRequest):
     result = vision_answer(prompt=req.prompt, base64_image=req.base64_image)
     return {"answer": result}
 
+# this api is for vision-based chat
 @app.post("/vision-chat", response_model=ChatResponse)
 def vision_chat(req: VisionChatRequest):
     """

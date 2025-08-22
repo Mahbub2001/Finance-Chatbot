@@ -1,4 +1,6 @@
-
+"""
+This is a test script for retrieving and displaying relevant documents from a Pinecone index.
+"""
 import os
 import time
 from uuid import uuid4

@@ -8,9 +8,10 @@ Ever struggled to find specific information in lengthy financial policy document
 
 - **Smart Conversations**: Ask follow-up questions and the AI remembers context
 - **Always Cited**: Every answer includes page numbers and source references
-- **Table-Aware**: Understands complex financial tables and data
+- **Table-Aware**: Understands complex financial tables and data. Better approach for utilizes the tables data.
 - **Multiple Interfaces**: Choose between web chat or interactive Streamlit app
 - **Lightning Fast**: Powered by Groq's ultra-fast LLM inference
+- **Multimodal Support**: Support image input also
 
 ## 🚀 Quick Start
 
@@ -44,29 +45,26 @@ Drop your PDF files into the `data/` folder:
 ```
 data/
 ├── financial_policy_2024.pdf
-├── budget_guidelines.pdf
-└── investment_strategy.pdf
 ```
 
 ### 4. Process Your Documents
+# At first create a pinecone index like -> finance-policy
+# Then embed and store in pinecone-
 ```bash
 # Enhanced processing with AI formatting
-python ingest_llm_enhanced.py
-
-# Or use the basic processor
 python ingest.py
 ```
 
 ### 5. Start the Application
+# Ati first run the FastApi Backend
 ```bash
-# Method 1: Streamlit Interface (Recommended)
-streamlit run streamlit_app.py
-# Open http://localhost:8501
-
-# Method 2: FastAPI Backend + Web Interface
+# FastAPI Backend + Web Interface
 uvicorn app:app --reload --port 8000
 # Open http://localhost:8000
 ```
+# Then Streamlit Interface 
+streamlit run streamlit_app.py
+# Open http://localhost:8501
 
 ## 🎯 How to Use
 
@@ -123,11 +121,10 @@ finance-policy-chatbot/
 ├── 🌐 Interface Files
 │   ├── streamlit_app.py            # Modern Streamlit interface
 │   ├── app.py                      # FastAPI backend
-│   └── static/index.html           # Web interface
+│   └── static/index.html           # Simple Web interface
 ├── 
 ├── 📊 Processing & Data
-│   ├── ingest_llm_enhanced.py      # AI-powered document processing
-│   ├── ingest.py                   # Basic document ingestion
+│   ├── ingest.py                   # Document ingestion
 │   ├── test.py                     # Document extraction testing
 │   └── data/                       # Your PDF documents go here
 ├── 
@@ -325,15 +322,11 @@ uvicorn app:app --reload
 ## 🔮 Future Enhancements
 
 Some ideas we're considering:
-- Multi-language document support
 - Advanced chart and graph understanding
 - Integration with more document formats
 - Enhanced conversation analytics
 - Custom AI model fine-tuning options
 
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 

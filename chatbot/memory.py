@@ -1,3 +1,7 @@
+"""
+This module provides a simple file-based memory store for user sessions.
+"""
+
 import os, json
 from typing import List, Dict
 
