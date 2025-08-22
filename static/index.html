@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Policy Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .chat-container {
+            margin: 20px 0;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .sources {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .tab {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-right: 5px;
+            background-color: #e9ecef;
+            border: none;
+            border-radius: 5px 5px 0 0;
+            cursor: pointer;
+        }
+        .tab.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 0 5px 5px 5px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Finance Policy Chatbot</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('chat')">Chat</button>
+            <button class="tab" onclick="switchTab('page')">Page Extract</button>
+        </div>
+
+        <!-- Chat Tab -->
+        <div id="chat" class="tab-content active">
+            <div class="input-group">
+                <label for="question">Ask a question about financial policies:</label>
+                <textarea id="question" placeholder="e.g., What are the budget priorities?"></textarea>
+            </div>
+            
+            <div class="input-group">
+                <label for="sessionId">Session ID:</label>
+                <input type="text" id="sessionId" value="user-session-1" placeholder="Enter session ID">
+            </div>
+            
+            <button onclick="askQuestion()">Ask Question</button>
+            <button onclick="clearChat()">Clear</button>
+            
+            <div id="chatResponse" class="response" style="display: none;">
+                <h3>Answer:</h3>
+                <div id="answer"></div>
+                <div id="sources" class="sources"></div>
+            </div>
+        </div>
+
+        <!-- Page Extract Tab -->
+        <div id="page" class="tab-content">
+            <div class="input-group">
+                <label for="bookId">Book ID:</label>
+                <input type="text" id="bookId" value="_file-1.pdf" placeholder="e.g., _file-1.pdf">
+            </div>
+            
+            <div class="input-group">
+                <label for="pageNumber">Page Number:</label>
+                <input type="number" id="pageNumber" value="1" placeholder="Enter page number">
+            </div>
+            
+            <button onclick="extractPage()">Extract Page</button>
+            
+            <div id="pageResponse" class="response" style="display: none;">
+                <h3>Page Content:</h3>
+                <div id="pageContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabName) {
+            // Hide all tab contents
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function askQuestion() {
+            const question = document.getElementById('question').value;
+            const sessionId = document.getElementById('sessionId').value;
+            
+            if (!question.trim()) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            const responseDiv = document.getElementById('chatResponse');
+            const answerDiv = document.getElementById('answer');
+            const sourcesDiv = document.getElementById('sources');
+            
+            // Show loading
+            responseDiv.style.display = 'block';
+            answerDiv.innerHTML = '<div class="loading">Thinking...</div>';
+            sourcesDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        session_id: sessionId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    answerDiv.innerHTML = data.answer;
+                    
+                    if (data.sources && data.sources.length > 0) {
+                        sourcesDiv.innerHTML = '<h4>Sources:</h4>' + 
+                            data.sources.map((source, index) => 
+                                `<p><strong>Source ${index + 1}:</strong> ${source.book_id || 'Unknown'} 
+                                (Similarity: ${source.similarity?.toFixed(4) || 'N/A'})<br>
+                                <em>${source.snippet || source.text || 'No snippet available'}</em></p>`
+                            ).join('');
+                    }
+                } else {
+                    answerDiv.innerHTML = `<div style="color: red;">Error: ${data.detail || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                answerDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function extractPage() {
+            const bookId = document.getElementById('bookId').value;
+            const pageNumber = parseInt(document.getElementById('pageNumber').value);
+            
+            if (!bookId.trim() || !pageNumber) {
+                alert('Please enter both book ID and page number');
+                return;
+            }
+            
+            const responseDiv = document.getElementById('pageResponse');
+            const contentDiv = document.getElementById('pageContent');
+            
+            // Show loading
+            responseDiv.style.display = 'block';
+            contentDiv.innerHTML = '<div class="loading">Extracting page content...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:8000/page', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        book_id: bookId,
+                        page_number: pageNumber
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.chunks && data.chunks.length > 0) {
+                        contentDiv.innerHTML = `<h4>Page ${data.page_number} from ${data.book_id}:</h4>` +
+                            data.chunks.map((chunk, index) => 
+                                `<div style="margin-bottom: 15px; padding: 10px; background-color: white; border-radius: 5px;">
+                                    <strong>Chunk ${index + 1}:</strong><br>
+                                    ${chunk}
+                                </div>`
+                            ).join('');
+                    } else {
+                        contentDiv.innerHTML = '<div>No content found for this page.</div>';
+                    }
+                } else {
+                    contentDiv.innerHTML = `<div style="color: red;">Error: ${data.detail || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                contentDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+
+        function clearChat() {
+            document.getElementById('question').value = '';
+            document.getElementById('chatResponse').style.display = 'none';
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('question').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askQuestion();
+            }
+        });
+    </script>
+</body>
+</html>
