@@ -167,7 +167,7 @@ print(response.json()["answer"])
 For better table extraction and content formatting:
 ```bash
 # Processes PDFs with AI-powered table formatting
-python ingest_llm_enhanced.py
+python ingest.py
 ```
 
 This enhanced processor:
@@ -300,7 +300,7 @@ uvicorn app:app --reload
 - Ensure you have internet connectivity
 
 **No Search Results**
-- Make sure documents are processed: `python ingest_llm_enhanced.py`
+- Make sure documents are processed: `python ingest.py`
 - Check if your Pinecone index exists and contains data
 - Try broader search terms in your questions
 
@@ -310,7 +310,7 @@ uvicorn app:app --reload
 - Monitor Pinecone query performance
 
 **Table Extraction Issues**
-- Use the enhanced ingestion: `python ingest_llm_enhanced.py`
+- Use the enhanced ingestion: `python ingest.py`
 - This uses AI to format tables properly
 - Check `debug_table.py` for extraction analysis
 
