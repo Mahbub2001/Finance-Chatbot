@@ -40,6 +40,11 @@ class VisionRequest(BaseModel):
     prompt: str
     base64_image: str  
 
+class VisionChatRequest(BaseModel):
+    question: str
+    session_id: str
+    base64_image: str  
+
 @app.get("/")
 def read_root():
     """Serve the main HTML interface"""
@@ -105,3 +110,61 @@ def get_page(req: PageRequest):
 def vision(req: VisionRequest):
     result = vision_answer(prompt=req.prompt, base64_image=req.base64_image)
     return {"answer": result}
+
+@app.post("/vision-chat", response_model=ChatResponse)
+def vision_chat(req: VisionChatRequest):
+    """
+    Process an image with vision model first, then use the extracted text 
+    along with the question to search documents and provide contextual answers
+    """
+    vision_prompt = f"""Analyze this image and provide the image text only
+    
+    User's question context: {req.question}"""
+    
+    image_description = vision_answer(prompt=vision_prompt, base64_image=req.base64_image)
+    
+    enhanced_question = f"""
+    User Question: {req.question}
+    
+    Image Analysis: {image_description}
+    
+    """
+    
+    history = memory.get_history(req.session_id)
+    summary = memory.get_summary(req.session_id)
+
+    relevant_docs = retriever.retrieve_relevant_docs(enhanced_question, top_k=5)
+    
+    contexts = []
+    for similarity, book_id, chunk_id, text_content, page_number in relevant_docs:
+        contexts.append({
+            "text": text_content,
+            "book_id": book_id,
+            "chunk_id": chunk_id,
+            "similarity": similarity,
+            "page_number": page_number,
+            "page": page_number 
+        })
+
+    answer = answer_with_context(
+        question=enhanced_question,
+        contexts=contexts,
+        chat_history=history,
+        summary=summary
+    )
+
+    memory.append_turn(req.session_id, user=f"[Image + Question] {req.question}", assistant=answer)
+
+    sources = [
+        {
+            "book_id": c.get("book_id"), 
+            "chunk_id": c.get("chunk_id"),
+            "similarity": c.get("similarity"),
+            "page_number": c.get("page_number"),
+            "page": c.get("page_number"),  
+            "snippet": c.get("text", "")[:300]
+        }
+        for c in contexts
+    ]
+
+    return ChatResponse(answer=answer, sources=sources)

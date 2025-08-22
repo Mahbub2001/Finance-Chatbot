@@ -98,7 +98,7 @@ def vision_answer(prompt: str, base64_image: str) -> str:
                     ],
                 }
             ],
-            model="llama-3.2-11b-vision-preview",
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:

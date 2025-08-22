@@ -5,6 +5,9 @@ from typing import Dict, List, Any
 import time
 import plotly.express as px
 import pandas as pd
+import base64
+from PIL import Image
+import io
 
 # Enhanced page configuration
 st.set_page_config(
@@ -138,7 +141,7 @@ st.markdown("""
     }
     
     .stTabs [data-baseweb="tab"] {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        background: transparent;
         border-radius: 10px 10px 0 0;
         padding: 10px 20px;
         border: 1px solid #dee2e6;
@@ -220,6 +223,63 @@ def check_api_status():
     except:
         st.session_state.api_status = "disconnected"
         return False
+
+def call_vision_chat_api(question: str, session_id: str, base64_image: str) -> Dict:
+    """Call the vision-chat API endpoint that combines image analysis with document search"""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/vision-chat",
+            headers={"Content-Type": "application/json"},
+            json={
+                "question": question,
+                "session_id": session_id,
+                "base64_image": base64_image
+            }
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"API request failed: {e}")
+        return {"answer": "Error: Could not process request", "sources": []}
+
+def call_vision_api(prompt: str, base64_image: str) -> Dict:
+    """Call the vision API endpoint"""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/vision",
+            headers={"Content-Type": "application/json"},
+            json={
+                "prompt": prompt,
+                "base64_image": base64_image
+            }
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"API request failed: {e}")
+        return {"answer": "Error: Could not process image"}
+
+def encode_image_to_base64(uploaded_file) -> str:
+    """Convert uploaded image to base64"""
+    try:
+        # Read the image file
+        image = Image.open(uploaded_file)
+        
+        # Convert to RGB if necessary
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+        
+        # Save to bytes
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=85)
+        buffer.seek(0)
+        
+        # Encode to base64
+        img_base64 = base64.b64encode(buffer.getvalue()).decode()
+        return f"data:image/jpeg;base64,{img_base64}"
+    except Exception as e:
+        st.error(f"Error processing image: {e}")
+        return ""
 
 def call_chat_api(question: str, session_id: str) -> Dict:
     try:
@@ -372,51 +432,148 @@ def render_sidebar():
                 st.rerun()
 
 def chat_interface():
+    st.markdown("""
+        <style>
+        /* Style the chat input box */
+        .stChatInput > div > div > input {
+            border: 1px solid #e0e0e0 !important;
+            border-radius: 25px !important;
+            padding: 12px 20px !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+            font-size: 16px !important;
+            background-color: #ffffff !important;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+        }
+        .stChatInput > div > div > input:focus {
+            border-color: #4A90E2 !important;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3) !important;
+            outline: none !important;
+        }
+        /* Style the file uploader */
+        .stFileUploader > div > div > div > div {
+            border: 1px solid #e0e0e0 !important;
+            border-radius: 10px !important;
+            padding: 10px !important;
+            background-color: #f9f9f9 !important;
+        }
+        .stFileUploader label {
+            font-size: 14px !important;
+            color: #333333 !important;
+            margin-bottom: 8px !important;
+        }
+        /* Ensure file uploader is above chat input */
+        .file-uploader-container {
+            margin-bottom: 10px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("## 💬 **AI Chat Assistant**")
-    st.markdown("*Ask questions about financial policies and get intelligent, sourced answers*")
-    
+    st.markdown("*Ask questions about financial policies and get intelligent, sourced answers. You can also upload images for analysis!*")
+
     chat_container = st.container()
-    
+
     with chat_container:
         if hasattr(st.session_state, 'pending_question'):
             question = st.session_state.pending_question
             delattr(st.session_state, 'pending_question')
-            
-            st.session_state.messages.append({"role": "user", "content": question})
-            
-            response = call_chat_api(question, st.session_state.session_id)
-            
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": response["answer"],
-                "sources": response.get("sources", [])
-            })
-        
+
+            if hasattr(st.session_state, 'uploaded_image'):
+                user_message = f"🖼️ [Image: {st.session_state.uploaded_image_name}] {question}"
+                st.session_state.messages.append({"role": "user", "content": user_message})
+
+                response = call_vision_chat_api(question, st.session_state.session_id, st.session_state.uploaded_image)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "sources": response.get("sources", [])
+                })
+            else:
+                st.session_state.messages.append({"role": "user", "content": question})
+
+                response = call_chat_api(question, st.session_state.session_id)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "sources": response.get("sources", [])
+                })
+
         for i, message in enumerate(st.session_state.messages):
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
                 if message["role"] == "assistant" and "sources" in message:
                     display_sources(message["sources"])
-    
 
     input_container = st.container()
-    
+
     with input_container:
+        st.markdown('<div class="file-uploader-container">', unsafe_allow_html=True)
+        st.markdown("📷 **Upload Image for Analysis** (Optional)")
+        st.markdown("Upload an image (chart, table, document page, etc.) to analyze along with your question.")
+
+        uploaded_file = st.file_uploader(
+            "Choose an image file",
+            type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
+            help="Supported formats: PNG, JPG, JPEG, GIF, BMP",
+            key="file_uploader"
+        )
+
+        if uploaded_file is not None:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+            with col2:
+                st.success("✅ Image uploaded successfully!")
+                st.info("💡 Now ask a question below and the AI will analyze both the image and search the documents for a comprehensive answer.")
+
+                if uploaded_file not in st.session_state:
+                    st.session_state.uploaded_image = encode_image_to_base64(uploaded_file)
+                    st.session_state.uploaded_image_name = uploaded_file.name
+        else:
+            if hasattr(st.session_state, 'uploaded_image'):
+                delattr(st.session_state, 'uploaded_image')
+            if hasattr(st.session_state, 'uploaded_image_name'):
+                delattr(st.session_state, 'uploaded_image_name')
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        prompt = st.chat_input("Ask me anything about financial policies... 💭", key="main_chat_input")
-        
+        if hasattr(st.session_state, 'uploaded_image'):
+            placeholder_text = f"Ask about the uploaded image ({st.session_state.uploaded_image_name}) and financial policies... 🖼️💭"
+        else:
+            placeholder_text = "Ask me anything about financial policies... 💭"
+
+        prompt = st.chat_input(placeholder_text, key="main_chat_input")
+
         if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            
-            response = call_chat_api(prompt, st.session_state.session_id)
-            
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": response["answer"],
-                "sources": response.get("sources", [])
-            })
-            
+            if hasattr(st.session_state, 'uploaded_image'):
+                user_message = f"🖼️ [Image: {st.session_state.uploaded_image_name}] {prompt}"
+                st.session_state.messages.append({"role": "user", "content": user_message})
+
+                response = call_vision_chat_api(prompt, st.session_state.session_id, st.session_state.uploaded_image)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "sources": response.get("sources", [])
+                })
+
+                delattr(st.session_state, 'uploaded_image')
+                if hasattr(st.session_state, 'uploaded_image_name'):
+                    delattr(st.session_state, 'uploaded_image_name')
+            else:
+                st.session_state.messages.append({"role": "user", "content": prompt})
+
+                response = call_chat_api(prompt, st.session_state.session_id)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response["answer"],
+                    "sources": response.get("sources", [])
+                })
+
             st.rerun()
 
 def page_extraction_interface():
@@ -549,6 +706,137 @@ def analytics_interface():
                     if "sources" in message:
                         st.info(f"**Sources:** {len(message['sources'])}")
 
+# def image_analysis_interface():
+#     st.markdown("## 🖼️ **Image Analysis & Document Search**")
+#     st.markdown("*Upload images of financial documents, charts, or tables for AI analysis combined with document search*")
+    
+#     # Upload section
+#     st.markdown("### 📤 **Upload Image**")
+#     uploaded_file = st.file_uploader(
+#         "Choose an image file to analyze",
+#         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
+#         help="Upload financial charts, tables, document pages, or any visual content you want to analyze"
+#     )
+    
+#     if uploaded_file is not None:
+#         col1, col2 = st.columns([1, 1])
+        
+#         with col1:
+#             st.markdown("#### 🖼️ **Uploaded Image**")
+#             st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", use_column_width=True)
+        
+#         with col2:
+#             st.markdown("#### 🤖 **Analysis Options**")
+            
+#             # Question input
+#             question = st.text_area(
+#                 "What would you like to know about this image?",
+#                 placeholder="e.g., 'What are the key financial metrics shown in this chart?' or 'Summarize the table data and compare with our policy documents'",
+#                 height=100
+#             )
+            
+#             analysis_type = st.radio(
+#                 "Choose analysis type:",
+#                 ["🔍 **Image + Document Search**", "📋 **Image Only Analysis**"],
+#                 help="Choose whether to analyze just the image or combine it with document search"
+#             )
+            
+#             col_btn1, col_btn2 = st.columns(2)
+#             with col_btn1:
+#                 analyze_btn = st.button("🚀 **Analyze**", type="primary", use_container_width=True)
+#             with col_btn2:
+#                 clear_btn = st.button("🗑️ **Clear**", use_container_width=True)
+        
+#         if clear_btn:
+#             st.rerun()
+        
+#         if analyze_btn and question:
+#             with st.spinner("🔄 Analyzing image..."):
+#                 # Encode image
+#                 base64_image = encode_image_to_base64(uploaded_file)
+                
+#                 if analysis_type == "🔍 **Image + Document Search**":
+#                     # Use the combined vision-chat endpoint
+#                     response = call_vision_chat_api(question, st.session_state.session_id, base64_image)
+                    
+#                     st.markdown("### 🎯 **Analysis Results**")
+                    
+#                     # Display answer
+#                     st.markdown("#### 💬 **AI Response**")
+#                     st.markdown(response["answer"])
+                    
+#                     # Display sources if available
+#                     if response.get("sources"):
+#                         st.markdown("#### 📚 **Document Sources**")
+#                         display_sources(response["sources"])
+                    
+#                 else:
+#                     # Use image-only analysis
+#                     vision_response = call_vision_api(question, base64_image)
+                    
+#                     st.markdown("### 🎯 **Image Analysis Results**")
+#                     st.markdown("#### 💬 **AI Response**")
+#                     st.markdown(vision_response["answer"])
+                
+#                 # Add to conversation history
+#                 user_msg = f"🖼️ [Image Analysis: {uploaded_file.name}] {question}"
+#                 assistant_msg = response["answer"] if analysis_type == "🔍 **Image + Document Search**" else vision_response["answer"]
+                
+#                 st.session_state.messages.append({"role": "user", "content": user_msg})
+#                 st.session_state.messages.append({
+#                     "role": "assistant", 
+#                     "content": assistant_msg,
+#                     "sources": response.get("sources", []) if analysis_type == "🔍 **Image + Document Search**" else []
+#                 })
+        
+#         elif analyze_btn and not question:
+#             st.warning("⚠️ Please enter a question about the image before analyzing.")
+    
+#     else:
+#         # Show example/help section when no image is uploaded
+#         st.markdown("### 🎯 **How to Use Image Analysis**")
+        
+#         col1, col2, col3 = st.columns(3)
+        
+#         with col1:
+#             st.markdown("""
+#             **📊 Charts & Graphs**
+#             - Upload financial charts
+#             - Extract data values
+#             - Compare with documents
+#             """)
+        
+#         with col2:
+#             st.markdown("""
+#             **📋 Tables & Reports**
+#             - Analyze table data
+#             - Extract key metrics
+#             - Cross-reference policies
+#             """)
+        
+#         with col3:
+#             st.markdown("""
+#             **📄 Document Pages**
+#             - Scan document images
+#             - Extract text content
+#             - Search related info
+#             """)
+        
+#         st.markdown("### 💡 **Example Questions**")
+        
+#         example_questions = [
+#             "What are the key financial metrics shown in this chart?",
+#             "Summarize the data in this table and explain its significance",
+#             "How does this information compare to our policy documents?",
+#             "Extract all the numbers and percentages from this image",
+#             "What trends can you identify in this financial chart?",
+#             "Explain the structure and content of this document page"
+#         ]
+        
+#         for i, q in enumerate(example_questions):
+#             if st.button(f"💭 {q}", key=f"example_img_q_{i}", use_container_width=True):
+#                 st.info(f"📝 Example question copied: {q}")
+
 def main():
     initialize_session_state()
     
@@ -556,44 +844,59 @@ def main():
     
     render_sidebar()
     
-    tab1, tab2, tab3, tab4 = st.tabs(["💬 **AI Chat**", "📄 **Page Extract**", "📊 **Analytics**", "ℹ️ **About**"])
+    tab1, tab3, tab4, tab5 = st.tabs(["💬 **AI Chat**", "�📄 **Page Extract**", "📊 **Analytics**", "ℹ️ **About**"])
+    # tab1, tab2, tab3, tab4, tab5 = st.tabs(["💬 **AI Chat**", "�️ **Image Analysis**", "�📄 **Page Extract**", "📊 **Analytics**", "ℹ️ **About**"])
     
     with tab1:
         chat_interface()
     
-    with tab2:
-        page_extraction_interface()
+    # with tab2:
+    #     image_analysis_interface()
     
     with tab3:
-        analytics_interface()
+        page_extraction_interface()
     
     with tab4:
+        analytics_interface()
+    
+    with tab5:
         st.markdown("## ℹ️ **About Finance Policy AI Assistant**")
         st.markdown("""
-        This application uses advanced **Retrieval-Augmented Generation (RAG)** technology to provide 
-        intelligent answers about financial policy documents.
+        This application uses advanced **Retrieval-Augmented Generation (RAG)** technology combined with 
+        **Computer Vision** to provide intelligent answers about financial policy documents.
         
         ### 🔧 **Technology Stack:**
         - **Frontend:** Streamlit with custom CSS
         - **Backend:** FastAPI with async processing
-        - **AI Model:** Groq (Llama 3.3 70B)
+        - **AI Model:** Groq (Llama 3.3 70B + Vision 11B)
         - **Vector Database:** Pinecone
         - **Embeddings:** Sentence Transformers
         - **Document Processing:** PDFPlumber + LLM Enhancement
+        - **Image Processing:** Pillow + Base64 encoding
         
         ### 📋 **Features:**
         - ✅ Intelligent document Q&A
+        - ✅ **Image analysis with vision AI**
+        - ✅ **Combined image + document search**
         - ✅ Source citation with page numbers
         - ✅ Page-specific content extraction
         - ✅ Conversation memory
         - ✅ Real-time analytics
         - ✅ Quick question suggestions
         
+        ### 🖼️ **Image Analysis Capabilities:**
+        - **Charts & Graphs:** Extract data and trends from financial charts
+        - **Tables:** Analyze tabular data and convert to text
+        - **Document Pages:** OCR-like analysis of document images
+        - **Mixed Content:** Process complex layouts with text and visuals
+        - **Context Integration:** Combine image analysis with document search
+        
         ### 🚀 **Getting Started:**
         1. Ask questions in natural language
-        2. Get AI-powered answers with sources
-        3. Extract specific pages for detailed review
-        4. View analytics to track your usage
+        2. Upload images for visual analysis
+        3. Get AI-powered answers with sources
+        4. Extract specific pages for detailed review
+        5. View analytics to track your usage
         
         ### 🔗 **Links:**
         - [FastAPI Backend]({API_BASE_URL}/docs) - API Documentation
