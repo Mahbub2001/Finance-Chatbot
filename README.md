@@ -8,7 +8,7 @@ Ever struggled to find specific information in lengthy financial policy document
 
 - **Smart Conversations**: Ask follow-up questions and the AI remembers context
 - **Always Cited**: Every answer includes page numbers and source references
-- **Table-Aware**: Understands complex financial tables and data. Better approach for utilizes the tables data using ai support.
+- **Table-Aware**: Understands complex financial tables and data. Better approach for utilizes the tables data using llm support.
 - **Multiple Interfaces**: Choose between web chat or interactive Streamlit app
 - **Lightning Fast**: Powered by Groq's ultra-fast LLM inference
 - **Multimodal Support**: Support image input also
